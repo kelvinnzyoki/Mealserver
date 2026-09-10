@@ -1,0 +1,661 @@
+// ============================================================================
+// KulaGo — Prisma schema
+// Kenyan food delivery platform: customers, vendors (kitchens), riders, admin
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  VENDOR
+  RIDER
+  ADMIN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT // cart checked out, waiting for M-Pesa confirmation
+  PLACED // paid, waiting for vendor to accept
+  ACCEPTED // vendor accepted
+  PREPARING
+  READY_FOR_PICKUP
+  ASSIGNED // rider assigned
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+  REJECTED // vendor rejected
+  EXPIRED // payment never completed within the window
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  DUPLICATE
+  TIMEOUT
+}
+
+enum PaymentMethod {
+  MPESA_STK
+  MPESA_TILL_MANUAL
+  CASH_ON_DELIVERY
+}
+
+enum DeliveryStatus {
+  UNASSIGNED
+  ASSIGNED
+  EN_ROUTE_TO_VENDOR
+  PICKED_UP
+  EN_ROUTE_TO_CUSTOMER
+  DELIVERED
+  FAILED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum MealPlanFrequency {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+}
+
+enum MealPlanStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AuditAction {
+  ORDER_CREATED
+  ORDER_STATUS_CHANGED
+  PAYMENT_INITIATED
+  PAYMENT_CALLBACK_RECEIVED
+  PAYMENT_VERIFIED
+  PAYMENT_FAILED
+  REFUND_ISSUED
+  VENDOR_APPROVED
+  VENDOR_SUSPENDED
+  RIDER_APPROVED
+  RIDER_SUSPENDED
+  COMMISSION_UPDATED
+  ZONE_UPDATED
+  COUPON_UPDATED
+}
+
+// ----------------------------------------------------------------------------
+// Identity
+// ----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String   @unique // Kenyan MSISDN, e.g. 2547XXXXXXXX
+  passwordHash String
+  fullName     String
+  role         Role     @default(CUSTOMER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 1:1 role profiles
+  vendor Vendor?
+  rider  Rider?
+
+  addresses          Address[]
+  cart               Cart?
+  orders             Order[]              @relation("CustomerOrders")
+  ordersPlacedFor    Order[]              @relation("RecipientOrders") // "order for someone else"
+  reviews            Review[]
+  notifications      Notification[]
+  mealPlans          MealPlan[]
+  refreshTokens      RefreshToken[]
+  passwordResetToken PasswordResetToken[]
+
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------------
+// Vendors (kitchens)
+// ----------------------------------------------------------------------------
+
+model Vendor {
+  id               String         @id @default(cuid())
+  userId           String         @unique
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName     String
+  description      String?
+  logoUrl          String?
+  coverImageUrl    String?
+  status           ApprovalStatus @default(PENDING)
+  isOpen           Boolean        @default(false) // vendor-controlled "open for orders" toggle
+  commissionRate   Decimal        @default(15.0) @db.Decimal(5, 2) // percent, overrides platform default if set
+  latitude         Float?
+  longitude        Float?
+  physicalAddress  String?
+  deliveryZoneId   String?
+  deliveryZone     DeliveryZone?  @relation(fields: [deliveryZoneId], references: [id])
+  avgPrepTimeMins  Int            @default(30)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  categories  FoodCategory[]
+  foodItems   FoodItem[]
+  orders      Order[]
+  reviews     Review[]
+  commissions CommissionLedger[]
+  coupons     Coupon[]
+
+  @@index([status])
+  @@index([deliveryZoneId])
+}
+
+// ----------------------------------------------------------------------------
+// Riders
+// ----------------------------------------------------------------------------
+
+model Rider {
+  id              String         @id @default(cuid())
+  userId          String         @unique
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status          ApprovalStatus @default(PENDING)
+  isAvailable     Boolean        @default(false)
+  nationalIdNo    String?
+  vehicleType     String? // bike, motorbike, car, on-foot
+  numberPlate     String?
+  currentLat      Float?
+  currentLng      Float?
+  ratingAvg       Decimal        @default(0) @db.Decimal(3, 2)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  deliveries Delivery[]
+
+  @@index([status])
+  @@index([isAvailable])
+}
+
+// ----------------------------------------------------------------------------
+// Menu
+// ----------------------------------------------------------------------------
+
+model FoodCategory {
+  id        String   @id @default(cuid())
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  name      String // e.g. "Kenyan Delicacies", "Breakfast", "Drinks"
+  slug      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  foodItems FoodItem[]
+
+  @@unique([vendorId, slug])
+  @@index([vendorId])
+}
+
+model FoodItem {
+  id             String   @id @default(cuid())
+  vendorId       String
+  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  categoryId     String
+  category       FoodCategory @relation(fields: [categoryId], references: [id])
+  name           String
+  description    String?
+  imageUrl       String?
+  basePrice      Decimal  @db.Decimal(10, 2) // KES
+  isAvailable    Boolean  @default(true)
+  isTodaysMenu   Boolean  @default(false)
+  prepTimeMins   Int      @default(20)
+  calorieInfo    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  variations  FoodVariation[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  reviews     Review[]
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([isTodaysMenu])
+}
+
+// e.g. size (large/small), or add-ons (extra ugali, extra meat)
+model FoodVariation {
+  id           String   @id @default(cuid())
+  foodItemId   String
+  foodItem     FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  name         String // "Large", "Extra Meat", "No Onions"
+  priceDelta   Decimal  @default(0) @db.Decimal(10, 2) // added to basePrice, can be 0
+  isRequired   Boolean  @default(false) // e.g. size choice is required, add-ons are not
+  groupName    String   @default("Options") // groups variations for UI, e.g. "Size", "Add-ons"
+
+  cartItemVariations  CartItemVariation[]
+  orderItemVariations OrderItemVariation[]
+
+  @@index([foodItemId])
+}
+
+// ----------------------------------------------------------------------------
+// Cart
+// ----------------------------------------------------------------------------
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime   @updatedAt
+
+  items CartItem[]
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  foodItemId String
+  foodItem   FoodItem @relation(fields: [foodItemId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  notes      String? // customization notes, e.g. "no chili"
+  createdAt  DateTime @default(now())
+
+  variations CartItemVariation[]
+
+  @@index([cartId])
+}
+
+model CartItemVariation {
+  id              String        @id @default(cuid())
+  cartItemId      String
+  cartItem        CartItem      @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  foodVariationId String
+  foodVariation   FoodVariation @relation(fields: [foodVariationId], references: [id], onDelete: Cascade)
+
+  @@index([cartItemId])
+}
+
+// ----------------------------------------------------------------------------
+// Addresses
+// ----------------------------------------------------------------------------
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String // "Home", "Office"
+  building      String?
+  street        String?
+  area          String? // e.g. "Kilimani", "Westlands"
+  city          String   @default("Nairobi")
+  landmark      String?
+  latitude      Float
+  longitude     Float
+  contactPhone  String? // for "order for someone else"
+  contactName   String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  orders Order[]
+
+  @@index([userId])
+}
+
+// ----------------------------------------------------------------------------
+// Delivery zones
+// ----------------------------------------------------------------------------
+
+model DeliveryZone {
+  id              String   @id @default(cuid())
+  name            String   @unique // "Nairobi CBD", "Kilimani", "Westlands"
+  isFreeDelivery  Boolean  @default(false)
+  deliveryFee     Decimal  @default(0) @db.Decimal(10, 2)
+  minOrderValue   Decimal  @default(0) @db.Decimal(10, 2)
+  centerLat       Float?
+  centerLng       Float?
+  radiusKm        Float?   // simple radius-based zone; polygon support can be added later
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  vendors Vendor[]
+  orders  Order[]
+
+  @@index([isActive])
+}
+
+// ----------------------------------------------------------------------------
+// Orders
+// ----------------------------------------------------------------------------
+
+model Order {
+  id               String        @id @default(cuid())
+  orderNumber      String        @unique // human-friendly, e.g. KG-20260905-0001
+  customerId       String
+  customer         User          @relation("CustomerOrders", fields: [customerId], references: [id])
+  recipientUserId  String? // set when "order for someone else" and recipient has an account
+  recipient        User?         @relation("RecipientOrders", fields: [recipientUserId], references: [id])
+  recipientName    String? // always store name/phone at time of order, account or not
+  recipientPhone   String?
+  vendorId         String
+  vendor           Vendor        @relation(fields: [vendorId], references: [id])
+  addressId        String?
+  address          Address?      @relation(fields: [addressId], references: [id])
+  deliveryZoneId   String?
+  deliveryZone     DeliveryZone? @relation(fields: [deliveryZoneId], references: [id])
+
+  status        OrderStatus @default(PENDING_PAYMENT)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  discountTotal Decimal     @default(0) @db.Decimal(10, 2)
+  deliveryFee   Decimal     @default(0) @db.Decimal(10, 2)
+  commissionAmt Decimal     @default(0) @db.Decimal(10, 2) // platform commission, informational on the order
+  total         Decimal     @db.Decimal(10, 2)
+
+  couponId String?
+  coupon   Coupon? @relation(fields: [couponId], references: [id])
+
+  mealPlanId String?
+  mealPlan   MealPlan? @relation(fields: [mealPlanId], references: [id])
+
+  scheduledFor DateTime? // for weekly office lunch plans / scheduled delivery
+  specialInstructions String?
+
+  paymentExpiresAt DateTime? // stale PENDING_PAYMENT orders auto-expire after this
+  placedAt         DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+  delivery Delivery?
+  review   Review?
+  auditLogs AuditLog[]
+
+  @@index([customerId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([deliveryZoneId])
+}
+
+model OrderItem {
+  id            String   @id @default(cuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  foodItemId    String
+  foodItem      FoodItem @relation(fields: [foodItemId], references: [id])
+  nameSnapshot  String // name at time of order, in case menu changes later
+  unitPrice     Decimal  @db.Decimal(10, 2) // base + variations, at time of order
+  quantity      Int
+  lineTotal     Decimal  @db.Decimal(10, 2)
+  notes         String?
+
+  variations OrderItemVariation[]
+
+  @@index([orderId])
+}
+
+model OrderItemVariation {
+  id              String        @id @default(cuid())
+  orderItemId     String
+  orderItem       OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  foodVariationId String
+  foodVariation   FoodVariation @relation(fields: [foodVariationId], references: [id])
+  nameSnapshot    String
+  priceDeltaSnapshot Decimal    @db.Decimal(10, 2)
+
+  @@index([orderItemId])
+}
+
+// ----------------------------------------------------------------------------
+// Payments (M-Pesa)
+// ----------------------------------------------------------------------------
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String
+  order             Order         @relation(fields: [orderId], references: [id])
+  method            PaymentMethod @default(MPESA_STK)
+  status            PaymentStatus @default(PENDING)
+  amount            Decimal       @db.Decimal(10, 2)
+  phoneNumber       String // MSISDN charged
+
+  // Daraja STK Push fields
+  merchantRequestId String? @unique
+  checkoutRequestId String? @unique // primary idempotency key for callbacks
+  mpesaReceiptNo    String? @unique // final M-Pesa transaction code, e.g. "SFC1XYZ123"
+  resultCode        Int?
+  resultDesc        String?
+  rawCallbackJson   Json? // full callback payload retained for audit/reconciliation
+
+  initiatedAt DateTime  @default(now())
+  confirmedAt DateTime?
+
+  @@index([orderId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// Delivery / dispatch
+// ----------------------------------------------------------------------------
+
+model Delivery {
+  id                String         @id @default(cuid())
+  orderId           String         @unique
+  order             Order          @relation(fields: [orderId], references: [id])
+  riderId           String?
+  rider             Rider?         @relation(fields: [riderId], references: [id])
+  status            DeliveryStatus @default(UNASSIGNED)
+  distanceKm        Float?
+  riderEarnings     Decimal        @default(0) @db.Decimal(10, 2)
+  assignedAt        DateTime?
+  pickedUpAt        DateTime?
+  deliveredAt       DateTime?
+  failureReason     String?
+  groupBatchId      String? // orders batched to the same building/office get the same batch id
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([riderId])
+  @@index([status])
+  @@index([groupBatchId])
+}
+
+// ----------------------------------------------------------------------------
+// Coupons
+// ----------------------------------------------------------------------------
+
+model Coupon {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  vendorId      String? // null = platform-wide coupon
+  vendor        Vendor?      @relation(fields: [vendorId], references: [id])
+  discountType  DiscountType
+  discountValue Decimal      @db.Decimal(10, 2)
+  minOrderValue Decimal      @default(0) @db.Decimal(10, 2)
+  maxUses       Int? // null = unlimited
+  usedCount     Int          @default(0)
+  isActive      Boolean      @default(true)
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  orders Order[]
+
+  @@index([vendorId])
+  @@index([isActive])
+}
+
+// ----------------------------------------------------------------------------
+// Reviews
+// ----------------------------------------------------------------------------
+
+model Review {
+  id         String   @id @default(cuid())
+  orderId    String   @unique
+  order      Order    @relation(fields: [orderId], references: [id])
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id])
+  vendorId   String
+  vendor     Vendor   @relation(fields: [vendorId], references: [id])
+  foodItemId String?
+  foodItem   FoodItem? @relation(fields: [foodItemId], references: [id])
+  rating     Int // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@index([vendorId])
+}
+
+// ----------------------------------------------------------------------------
+// Notifications
+// ----------------------------------------------------------------------------
+
+model Notification {
+  id        String              @id @default(cuid())
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   NotificationChannel
+  status    NotificationStatus  @default(PENDING)
+  title     String
+  body      String
+  metadata  Json?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// Subscriptions / recurring office lunch plans
+// ----------------------------------------------------------------------------
+
+model MealPlan {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendorId     String
+  frequency    MealPlanFrequency
+  status       MealPlanStatus    @default(ACTIVE)
+  deliveryTime String // "13:00" local time, generation job uses this
+  addressId    String
+  startDate    DateTime
+  endDate      DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  orders Order[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// Commission ledger
+// ----------------------------------------------------------------------------
+
+model CommissionLedger {
+  id             String   @id @default(cuid())
+  vendorId       String
+  vendor         Vendor   @relation(fields: [vendorId], references: [id])
+  orderId        String   @unique
+  grossAmount    Decimal  @db.Decimal(10, 2)
+  commissionRate Decimal  @db.Decimal(5, 2)
+  commissionAmt  Decimal  @db.Decimal(10, 2)
+  netPayoutAmt   Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime @default(now())
+
+  @@index([vendorId])
+}
+
+// ----------------------------------------------------------------------------
+// Platform settings (single-row config table)
+// ----------------------------------------------------------------------------
+
+model PlatformSettings {
+  id                     Int     @id @default(1)
+  defaultCommissionRate  Decimal @default(15.0) @db.Decimal(5, 2)
+  defaultDeliveryFee     Decimal @default(100.0) @db.Decimal(10, 2)
+  defaultMinOrderValue   Decimal @default(0) @db.Decimal(10, 2)
+  paymentTimeoutMinutes  Int     @default(10)
+  supportPhone           String?
+  supportEmail           String?
+  updatedAt              DateTime @updatedAt
+}
+
+// ----------------------------------------------------------------------------
+// Audit log
+// ----------------------------------------------------------------------------
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  action     AuditAction
+  actorType  String // "system" | "user" | "vendor" | "rider" | "admin"
+  actorId    String?
+  orderId    String?
+  order      Order?      @relation(fields: [orderId], references: [id])
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+
+  @@index([orderId])
+  @@index([action])
+}
