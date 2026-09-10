@@ -201,6 +201,7 @@ model Vendor {
   reviews     Review[]
   commissions CommissionLedger[]
   coupons     Coupon[]
+  mealPlans   MealPlan[]
 
   @@index([status])
   @@index([deliveryZoneId])
@@ -353,6 +354,7 @@ model Address {
   createdAt     DateTime @default(now())
 
   orders Order[]
+  mealPlans MealPlan[]
 
   @@index([userId])
 }
@@ -594,10 +596,12 @@ model MealPlan {
   userId       String
   user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   vendorId     String
+  vendor       Vendor            @relation(fields: [vendorId], references: [id])
   frequency    MealPlanFrequency
   status       MealPlanStatus    @default(ACTIVE)
   deliveryTime String // "13:00" local time, generation job uses this
   addressId    String
+  address      Address           @relation(fields: [addressId], references: [id])
   startDate    DateTime
   endDate      DateTime?
   createdAt    DateTime          @default(now())
@@ -607,6 +611,7 @@ model MealPlan {
 
   @@index([userId])
   @@index([status])
+  @@index([vendorId])
 }
 
 // ----------------------------------------------------------------------------
