@@ -94,7 +94,7 @@ export function getVendorByUserId(userId: string) {
 export async function updateOwnProfile(userId: string, data: Record<string, unknown>) {
   const vendor = await prisma.vendor.findUnique({ where: { userId } });
   if (!vendor) throw AppError.notFound("Vendor profile not found");
-  return prisma.vendor.update({ where: { id: vendor.id }, data });
+  return prisma.vendor.update({ where: { id: vendor.id }, data: data as never });
 }
 
 export async function getEarningsSummary(userId: string) {
