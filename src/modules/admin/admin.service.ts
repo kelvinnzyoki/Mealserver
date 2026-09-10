@@ -105,10 +105,14 @@ export function getPlatformSettings() {
 }
 
 export function updatePlatformSettings(data: Record<string, unknown>) {
+  // Same reasoning as zone.service.ts's `as never` casts: this comes from
+  // an admin-only settings form, not user-generated Prisma input, and a
+  // generic Record<string, unknown> doesn't structurally match Prisma's
+  // specific PlatformSettingsUpdateInput field types.
   return prisma.platformSettings.upsert({
     where: { id: 1 },
-    update: data,
-    create: { id: 1, ...data },
+    update: data as never,
+    create: { id: 1, ...data } as never,
   });
 }
 
@@ -128,7 +132,7 @@ export async function issueRefund(actorId: string, orderId: string, reason: stri
   });
 
   await prisma.auditLog.create({
-    data: { action: AuditAction.REFUND_ISSUED, actorType: "admin", actorId, orderId, metadata: { reason, amount: order.total } },
+    data: { action: AuditAction.REFUND_ISSUED, actorType: "admin", actorId, orderId, metadata: { reason, amount: Number(order.total) } },
   });
 
   return updated;
