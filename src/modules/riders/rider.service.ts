@@ -48,7 +48,7 @@ export async function updateOwnProfile(userId: string, data: Record<string, unkn
   if (rider.status !== ApprovalStatus.APPROVED && data.isAvailable) {
     throw AppError.forbidden("Your rider account is not approved yet");
   }
-  return prisma.rider.update({ where: { id: rider.id }, data });
+  return prisma.rider.update({ where: { id: rider.id }, data: data as never });
 }
 
 export async function getDeliveryHistory(userId: string) {
