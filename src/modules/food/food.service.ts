@@ -90,7 +90,7 @@ export async function updateFoodItem(userId: string, itemId: string, data: Recor
   const vendor = await requireOwnVendor(userId);
   const item = await prisma.foodItem.findUnique({ where: { id: itemId } });
   if (!item || item.vendorId !== vendor.id) throw AppError.notFound("Food item not found");
-  return prisma.foodItem.update({ where: { id: itemId }, data });
+  return prisma.foodItem.update({ where: { id: itemId }, data: data as never });
 }
 
 export async function deleteFoodItem(userId: string, itemId: string) {
