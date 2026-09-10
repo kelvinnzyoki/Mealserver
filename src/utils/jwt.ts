@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
 import { env } from "../config/env";
 import { Role } from "@prisma/client";
@@ -9,9 +9,12 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  return jwt.sign(payload, env.jwt.accessSecret, {
-    expiresIn: env.jwt.accessExpiresIn,
-  });
+  // Newer @types/jsonwebtoken types `expiresIn` as a branded string pattern
+  // (e.g. "15m", "30d"), not a generic `string` — env.jwt.accessExpiresIn is
+  // a plain string since it comes from process.env, so it needs an explicit
+  // cast here rather than actually being an unsafe value.
+  const options: SignOptions = { expiresIn: env.jwt.accessExpiresIn as SignOptions["expiresIn"] };
+  return jwt.sign(payload, env.jwt.accessSecret, options);
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
