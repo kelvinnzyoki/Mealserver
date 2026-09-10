@@ -1,8 +1,8 @@
 {
-  "name": "kulago-backend",
+  "name": "Mpishi254-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "KulaGo — Kenyan food delivery platform API",
+  "description": "Mpishi254 — Kenyan food delivery platform API",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
