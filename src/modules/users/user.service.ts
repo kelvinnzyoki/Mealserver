@@ -5,11 +5,32 @@ export function listAddresses(userId: string) {
   return prisma.address.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
 }
 
-export async function createAddress(userId: string, data: Omit<Parameters<typeof prisma.address.create>[0]["data"], "userId">) {
+// Explicit shape instead of deriving one from Prisma's own create() signature:
+// Prisma's data param is a union of a "checked" input (nested `user` relation
+// write) and an "unchecked" input (plain `userId` scalar), and Omit<union, K>
+// does not distribute over unions the way you'd expect — it silently
+// produces a hybrid type that matches neither branch, which is what was
+// blowing up here. A plain interface plus a cast at the call site (same
+// pattern used elsewhere in this file) sidesteps that entirely.
+export interface CreateAddressInput {
+  label: string;
+  building?: string;
+  street?: string;
+  area?: string;
+  city?: string;
+  landmark?: string;
+  latitude: number;
+  longitude: number;
+  contactPhone?: string;
+  contactName?: string;
+  isDefault?: boolean;
+}
+
+export async function createAddress(userId: string, data: CreateAddressInput) {
   if (data.isDefault) {
     await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
   }
-  return prisma.address.create({ data: { ...data, userId } });
+  return prisma.address.create({ data: { ...data, userId } as never });
 }
 
 export async function updateAddress(userId: string, addressId: string, data: Record<string, unknown>) {
