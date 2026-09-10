@@ -3,7 +3,7 @@
   "builds": [{ "src": "api/index.ts", "use": "@vercel/node" }],
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "crons": [
-    { "path": "/api/internal/jobs/expire-stale-orders", "schedule": "*/5 * * * *" },
+    { "path": "/api/internal/jobs/expire-stale-orders", "schedule": "*/1 * * * *" },
     /*{ "path": "/api/internal/jobs/generate-meal-plan-orders", "schedule": "0 5 * * *" }*/
   ]
 }
