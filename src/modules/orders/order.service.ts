@@ -255,7 +255,11 @@ export async function cancelOrder(userId: string, orderId: string, reason?: stri
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw AppError.notFound("Order not found");
   if (order.customerId !== userId) throw AppError.forbidden();
-  if (![OrderStatus.PENDING_PAYMENT, OrderStatus.PLACED].includes(order.status)) {
+  // Cast widens the array's element type to the full OrderStatus enum —
+  // without it, TS infers a 2-member literal union from the array and
+  // rejects comparing it against order.status's broader OrderStatus type.
+  const cancellableStatuses: OrderStatus[] = [OrderStatus.PENDING_PAYMENT, OrderStatus.PLACED];
+  if (!cancellableStatuses.includes(order.status)) {
     throw AppError.badRequest("This order can no longer be cancelled — it's already being prepared");
   }
 
