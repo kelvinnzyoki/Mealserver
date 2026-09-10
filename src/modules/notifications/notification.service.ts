@@ -2,7 +2,7 @@ import axios from "axios";
 import { env } from "../../config/env";
 import { logger } from "../../utils/logger";
 import { prisma } from "../../config/prisma";
-import { NotificationChannel, NotificationStatus } from "@prisma/client";
+import { NotificationChannel, NotificationStatus, Prisma } from "@prisma/client";
 
 // SMS via Africa's Talking REST API. Kept as a thin direct HTTP call rather
 // than their SDK so it has zero extra dependencies and is easy to swap.
@@ -60,7 +60,11 @@ async function notify(params: {
       channel: params.channel,
       title: params.title,
       body: params.body,
-      metadata: params.metadata,
+      // Prisma's Json input type doesn't accept a generic `Record<string,
+      // unknown>` — its values are typed `unknown`, which isn't provably
+      // JSON-safe. The metadata we actually pass in is always plain
+      // string/number/enum values, so this cast is safe.
+      metadata: params.metadata as Prisma.InputJsonValue | undefined,
       status: NotificationStatus.PENDING,
     },
   });
