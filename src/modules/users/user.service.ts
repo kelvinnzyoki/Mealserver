@@ -19,7 +19,7 @@ export async function updateAddress(userId: string, addressId: string, data: Rec
   if (data.isDefault) {
     await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
   }
-  return prisma.address.update({ where: { id: addressId }, data });
+  return prisma.address.update({ where: { id: addressId }, data: data as never });
 }
 
 export async function deleteAddress(userId: string, addressId: string) {
