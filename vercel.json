@@ -1,7 +1,13 @@
 {
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "crons": [
-    { "path": "/api/internal/jobs/expire-stale-orders", "schedule": "*/5 * * * *" }
-    
+    {
+      "path": "/api/internal/jobs/expire-stale-orders",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/internal/jobs/generate-meal-plan-orders",
+      "schedule": "0 2 * * *"
+    }
   ]
 }
