@@ -1,6 +1,7 @@
 {
-  "buildCommand": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
+  "version": 2,
+  "builds": [{ "src": "api/index.ts", "use": "@vercel/node" }],
+  "routes": [{ "src": "/(.*)", "dest": "/api/index" }],
   "crons": [
     { "path": "/api/internal/jobs/expire-stale-orders", "schedule": "0 2 * * *" },
     { "path": "/api/internal/jobs/generate-meal-plan-orders", "schedule": "0 2 * * *" }
