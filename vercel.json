@@ -1,27 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "npm run vercel-build",
-  "installCommand": "npm install",
-  "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
-  ],
+  "buildCommand": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }],
   "crons": [
-    {
-      "path": "/api/internal/jobs/expire-stale-orders",
-      "schedule": "0 2 * * *"
-    },
-    {
-      "path": "/api/internal/jobs/generate-meal-plan-orders",
-      "schedule": "0 2 * * *"
-    }
+    { "path": "/api/internal/jobs/expire-stale-orders", "schedule": "0 2 * * *" },
+    { "path": "/api/internal/jobs/generate-meal-plan-orders", "schedule": "0 2 * * *" }
   ]
 }
