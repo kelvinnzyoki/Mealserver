@@ -9,7 +9,6 @@
     "build": "npx prisma generate --schema=./prisma/schema.prisma && npx tsc",
     "vercel-build": "npx prisma generate --schema=./prisma/schema.prisma && (npx prisma migrate resolve --rolled-back 20260349000000_add_missing_table5 --schema=./prisma/schema.prisma 2>/dev/null || true) && npx prisma migrate deploy --schema=./prisma/schema.prisma && npx tsc",
     "postinstall": "npx prisma generate --schema=./prisma/schema.prisma",
-    "buildCommand": "null",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:studio": "prisma studio",
