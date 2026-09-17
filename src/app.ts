@@ -22,6 +22,8 @@ import couponRoutes from "./modules/coupons/coupon.routes";
 import subscriptionRoutes from "./modules/subscriptions/subscription.routes";
 import zoneRoutes from "./modules/zones/zone.routes";
 import internalRoutes from "./modules/internal/internal.routes";
+import seedRoute from "./modules/admin/seed.route";
+
 
 const app = express();
 
@@ -82,6 +84,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/zones", zoneRoutes);
 app.use("/api/internal", internalRoutes);
+app.use("/api/admin", seedRoute);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
