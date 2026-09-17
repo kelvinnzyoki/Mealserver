@@ -55,7 +55,7 @@ app.use("/api", apiLimiter);
 app.get("/health", (_req, res) =>
   res.json({
     ok: true,
-    service: "kulago-backend",
+    service: "mpishi254-backend",
     env: env.nodeEnv,
   })
 );
