@@ -78,13 +78,14 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/riders", riderRoutes);
 app.use("/api/delivery", deliveryRoutes);
+app.use("/api/admin", seedRoute);
 app.use("/api/admin", adminRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/zones", zoneRoutes);
 app.use("/api/internal", internalRoutes);
-app.use("/api/admin", seedRoute);
+
 
 app.use(notFoundHandler);
 app.use(errorHandler);
