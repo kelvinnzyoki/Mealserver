@@ -1,5 +1,5 @@
 // ============================================================================
-// KulaGo — Prisma schema
+// kulago — Prisma schema
 // Kenyan food delivery platform: customers, vendors (kitchens), riders, admin
 // ============================================================================
 
