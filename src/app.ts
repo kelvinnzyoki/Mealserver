@@ -55,7 +55,7 @@ app.use("/api", apiLimiter);
 app.get("/health", (_req, res) =>
   res.json({
     ok: true,
-    service: "mpishi254-backend",
+    service: "Mpishi254-backend",
     env: env.nodeEnv,
   })
 );
