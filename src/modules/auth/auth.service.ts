@@ -8,6 +8,13 @@ import crypto from "crypto";
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+const SIGNUP_CODE_TTL_MS = 10 * 60 * 1000;
+const SIGNUP_CODE_MAX_ATTEMPTS = 5;
+const SIGNUP_RESEND_COOLDOWN_MS = 60 * 1000;
+
+function generateSignupCode(): string {
+  return String(crypto.randomInt(100000, 1000000)); // always 6 digits
+}
 
 async function issueTokenPair(userId: string, role: Role) {
   const accessToken = signAccessToken({ sub: userId, role });
@@ -24,31 +31,118 @@ async function issueTokenPair(userId: string, role: Role) {
   return { accessToken, refreshToken };
 }
 
-export async function register(input: {
+// Step 1 of signup: validate the details, email a 6-digit code, and park
+// everything needed to create the account in PendingSignup — no User row
+// exists yet. (Creating the account before verification completes was a
+// real bug on an earlier project; this shape makes that mistake
+// structurally impossible here.)
+export async function startRegistration(input: {
   fullName: string;
   phone: string;
-  email?: string;
+  email: string;
   password: string;
 }) {
   const phone = normalizeKenyanPhone(input.phone);
+  const email = input.email.toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { phone } });
-  if (existing) throw AppError.conflict("An account with this phone number already exists");
+  const existingUser = await prisma.user.findFirst({ where: { OR: [{ phone }, { email }] } });
+  if (existingUser) {
+    throw AppError.conflict(
+      existingUser.phone === phone
+        ? "An account with this phone number already exists"
+        : "An account with this email already exists"
+    );
+  }
 
+  const existingPending = await prisma.pendingSignup.findUnique({ where: { email } });
+  if (existingPending && Date.now() - existingPending.updatedAt.getTime() < SIGNUP_RESEND_COOLDOWN_MS) {
+    throw AppError.badRequest("A code was just sent — please wait a moment before requesting another.");
+  }
+
+  const code = generateSignupCode();
   const passwordHash = await hashPassword(input.password);
-  const user = await prisma.user.create({
-    data: {
+
+  await prisma.pendingSignup.upsert({
+    where: { email },
+    create: {
+      email,
       fullName: input.fullName,
       phone,
-      email: input.email,
       passwordHash,
-      role: Role.CUSTOMER,
-      cart: { create: {} }, // every customer gets an empty cart up front
+      codeHash: hashToken(code),
+      attempts: 0,
+      expiresAt: new Date(Date.now() + SIGNUP_CODE_TTL_MS),
+    },
+    update: {
+      fullName: input.fullName,
+      phone,
+      passwordHash,
+      codeHash: hashToken(code),
+      attempts: 0,
+      expiresAt: new Date(Date.now() + SIGNUP_CODE_TTL_MS),
     },
   });
 
+  const { sendSignupVerificationEmail } = await import("../notifications/notification.service");
+  const sent = await sendSignupVerificationEmail(email, code);
+  if (!sent) throw AppError.badRequest("Could not send the verification email — please try again shortly.");
+}
+
+// Step 2: confirm the code and actually create the account.
+export async function verifyRegistrationAndCreateUser(emailRaw: string, code: string) {
+  const email = emailRaw.toLowerCase();
+  const pending = await prisma.pendingSignup.findUnique({ where: { email } });
+
+  if (!pending || pending.expiresAt < new Date()) {
+    throw AppError.badRequest("This code has expired — request a new one.");
+  }
+  if (pending.attempts >= SIGNUP_CODE_MAX_ATTEMPTS) {
+    throw AppError.badRequest("Too many incorrect attempts — request a new code.");
+  }
+  if (hashToken(code) !== pending.codeHash) {
+    await prisma.pendingSignup.update({ where: { email }, data: { attempts: { increment: 1 } } });
+    const remaining = SIGNUP_CODE_MAX_ATTEMPTS - pending.attempts - 1;
+    throw AppError.badRequest(`Incorrect code — ${Math.max(remaining, 0)} attempt(s) left.`);
+  }
+
+  // A race on phone/email uniqueness here (two people verifying near-
+  // simultaneously) surfaces as a Prisma P2002, which the global error
+  // handler already turns into a clean 409 — no special handling needed.
+  const user = await prisma.user.create({
+    data: {
+      fullName: pending.fullName,
+      phone: pending.phone,
+      email: pending.email,
+      passwordHash: pending.passwordHash,
+      role: Role.CUSTOMER,
+      cart: { create: {} },
+    },
+  });
+
+  await prisma.pendingSignup.delete({ where: { email } }).catch(() => undefined);
+
   const tokens = await issueTokenPair(user.id, user.role);
   return { user, ...tokens };
+}
+
+export async function resendRegistrationCode(emailRaw: string) {
+  const email = emailRaw.toLowerCase();
+  const pending = await prisma.pendingSignup.findUnique({ where: { email } });
+  if (!pending) throw AppError.badRequest("Start the signup form again first.");
+
+  if (Date.now() - pending.updatedAt.getTime() < SIGNUP_RESEND_COOLDOWN_MS) {
+    throw AppError.badRequest("Please wait a moment before requesting another code.");
+  }
+
+  const code = generateSignupCode();
+  await prisma.pendingSignup.update({
+    where: { email },
+    data: { codeHash: hashToken(code), attempts: 0, expiresAt: new Date(Date.now() + SIGNUP_CODE_TTL_MS) },
+  });
+
+  const { sendSignupVerificationEmail } = await import("../notifications/notification.service");
+  const sent = await sendSignupVerificationEmail(email, code);
+  if (!sent) throw AppError.badRequest("Could not send the verification email — please try again shortly.");
 }
 
 export async function login(input: { phone: string; password: string }) {
