@@ -53,6 +53,11 @@ export const env = {
     from: process.env.SMTP_FROM ?? "KulaGo <no-reply@kulago.co.ke>",
   },
 
+  resend: {
+    apiKey: process.env.RESEND_API_KEY ?? "",
+    fromEmail: process.env.RESEND_FROM_EMAIL ?? "KulaGo <no-reply@kulago.co.ke>",
+  },
+
   paymentTimeoutMinutes: Number(process.env.PAYMENT_TIMEOUT_MINUTES ?? 10),
   internalJobSecret: process.env.INTERNAL_JOB_SECRET ?? "",
 };
