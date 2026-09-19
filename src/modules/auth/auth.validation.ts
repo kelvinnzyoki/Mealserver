@@ -9,12 +9,25 @@ const phoneSchema = z
     message: "Enter a valid Kenyan phone number, e.g. 0712345678",
   });
 
-export const registerSchema = z.object({
+export const startRegistrationSchema = z.object({
   body: z.object({
     fullName: z.string().trim().min(2, "Full name is too short"),
     phone: phoneSchema,
-    email: z.string().trim().email().optional(),
+    email: z.string().trim().email("Enter a valid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
+  }),
+});
+
+export const verifyRegistrationSchema = z.object({
+  body: z.object({
+    email: z.string().trim().email(),
+    code: z.string().trim().length(6, "Enter the 6-digit code"),
+  }),
+});
+
+export const resendRegistrationCodeSchema = z.object({
+  body: z.object({
+    email: z.string().trim().email(),
   }),
 });
 
