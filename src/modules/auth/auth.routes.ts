@@ -3,13 +3,17 @@ import { validate } from "../../middleware/validate";
 import { requireAuth } from "../../middleware/auth";
 import { authLimiter } from "../../middleware/rateLimiter";
 import {
-  registerSchema,
+  startRegistrationSchema,
+  verifyRegistrationSchema,
+  resendRegistrationCodeSchema,
   loginSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
 } from "./auth.validation";
 import {
-  registerHandler,
+  startRegistrationHandler,
+  verifyRegistrationHandler,
+  resendRegistrationCodeHandler,
   loginHandler,
   refreshHandler,
   logoutHandler,
@@ -20,7 +24,12 @@ import {
 
 const router = Router();
 
-router.post("/register", authLimiter, validate(registerSchema), registerHandler);
+// Two-step signup: /register/start emails a 6-digit code and creates
+// nothing yet; /register/verify checks it and actually creates the account.
+router.post("/register/start", authLimiter, validate(startRegistrationSchema), startRegistrationHandler);
+router.post("/register/verify", authLimiter, validate(verifyRegistrationSchema), verifyRegistrationHandler);
+router.post("/register/resend", authLimiter, validate(resendRegistrationCodeSchema), resendRegistrationCodeHandler);
+
 router.post("/login", authLimiter, validate(loginSchema), loginHandler);
 router.post("/refresh", refreshHandler);
 router.post("/logout", logoutHandler);
