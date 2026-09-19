@@ -4,6 +4,44 @@ import { logger } from "../../utils/logger";
 import { prisma } from "../../config/prisma";
 import { NotificationChannel, NotificationStatus, Prisma } from "@prisma/client";
 
+// Email via Resend's REST API — a thin direct HTTP call like the Africa's
+// Talking one below, no SDK dependency. Returns whether the send succeeded
+// so callers (the signup-verification flow) can decide how to react to a
+// failed send rather than silently pretending the code went out.
+async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  if (!env.resend.apiKey) {
+    logger.warn("Email not sent — RESEND_API_KEY not configured", { to });
+    return false;
+  }
+  try {
+    const { data } = await axios.post(
+      "https://api.resend.com/emails",
+      { from: env.resend.fromEmail, to, subject, html },
+      { headers: { Authorization: `Bearer ${env.resend.apiKey}`, "Content-Type": "application/json" } }
+    );
+    return Boolean(data?.id);
+  } catch (err) {
+    logger.error("Email send failed", {
+      to,
+      error: axios.isAxiosError(err) ? JSON.stringify(err.response?.data) : String(err),
+    });
+    return false;
+  }
+}
+
+export async function sendSignupVerificationEmail(to: string, code: string): Promise<boolean> {
+  return sendEmail(
+    to,
+    "Your KulaGo verification code",
+    `<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+       <h2 style="color: #1C1A17;">Confirm your KulaGo account</h2>
+       <p>Enter this code to finish creating your account:</p>
+       <p style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #C1440E;">${code}</p>
+       <p style="color: #8A8375; font-size: 14px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+     </div>`
+  );
+}
+
 // SMS via Africa's Talking REST API. Kept as a thin direct HTTP call rather
 // than their SDK so it has zero extra dependencies and is easy to swap.
 // NOTE: Africa's Talking requires an approved sender ID/short code for
