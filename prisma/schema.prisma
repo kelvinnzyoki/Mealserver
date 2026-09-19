@@ -294,8 +294,8 @@ model FoodItem {
   @@index([vendorId])
   @@index([categoryId])
   @@index([isTodaysMenu])
+  @@unique([vendorId, name]) 
 }
-
 // e.g. size (large/small), or add-ons (extra ugali, extra meat)
 model FoodVariation {
   id           String   @id @default(cuid())
