@@ -1,5 +1,5 @@
 // ============================================================================
-// kulago — Prisma schema
+// KulaGo — Prisma schema
 // Kenyan food delivery platform: customers, vendors (kitchens), riders, admin
 // ============================================================================
 
@@ -171,6 +171,24 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+// Holds a registration in progress until the emailed code is confirmed —
+// no User row is created until then, so an abandoned or never-verified
+// signup never produces a real (unusable) account. Keyed by email so
+// starting again with the same address simply issues a fresh code rather
+// than piling up rows.
+model PendingSignup {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String
+  phone        String
+  passwordHash String
+  codeHash     String
+  attempts     Int      @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
 // ----------------------------------------------------------------------------
 // Vendors (kitchens)
 // ----------------------------------------------------------------------------
@@ -276,7 +294,6 @@ model FoodItem {
   @@index([vendorId])
   @@index([categoryId])
   @@index([isTodaysMenu])
-@@unique([vendorId, name])
 }
 
 // e.g. size (large/small), or add-ons (extra ugali, extra meat)
