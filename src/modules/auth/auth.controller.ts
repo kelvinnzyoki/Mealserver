@@ -9,11 +9,32 @@ function publicUser(user: { id: string; fullName: string; phone: string; email: 
   return { id: user.id, fullName: user.fullName, phone: user.phone, email: user.email, role: user.role };
 }
 
-export async function registerHandler(req: Request, res: Response, next: NextFunction) {
+export async function startRegistrationHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const { user, accessToken, refreshToken } = await authService.register(req.body);
+    await authService.startRegistration(req.body);
+    ok(res, { message: "We've emailed you a 6-digit code. Enter it to finish creating your account." });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verifyRegistrationHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { user, accessToken, refreshToken } = await authService.verifyRegistrationAndCreateUser(
+      req.body.email,
+      req.body.code
+    );
     setAuthCookies(res, accessToken, refreshToken);
     created(res, { user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resendRegistrationCodeHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    await authService.resendRegistrationCode(req.body.email);
+    ok(res, { message: "A new code is on its way." });
   } catch (err) {
     next(err);
   }
