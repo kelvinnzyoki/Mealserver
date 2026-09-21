@@ -129,6 +129,7 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  pendingEmailChange PendingEmailChange?
 
   // 1:1 role profiles
   vendor Vendor?
@@ -170,6 +171,20 @@ model PasswordResetToken {
 
   @@index([userId])
 }
+
+model PendingEmailChange {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail  String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
 
 // Holds a registration in progress until the emailed code is confirmed —
 // no User row is created until then, so an abandoned or never-verified
