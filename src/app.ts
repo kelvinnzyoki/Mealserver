@@ -23,6 +23,8 @@ import subscriptionRoutes from "./modules/subscriptions/subscription.routes";
 import zoneRoutes from "./modules/zones/zone.routes";
 import internalRoutes from "./modules/internal/internal.routes";
 import seedRoute from "./modules/admin/seed.route";
+import adminFoodImages from "./modules/admin/adminFoodImages.routes";
+
 
 
 const app = express();
