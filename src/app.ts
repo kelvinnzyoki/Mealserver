@@ -85,6 +85,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/zones", zoneRoutes);
 app.use("/api/internal", internalRoutes);
+app.use("/api/admin", adminFoodImagesRoutes;
 
 
 app.use(notFoundHandler);
