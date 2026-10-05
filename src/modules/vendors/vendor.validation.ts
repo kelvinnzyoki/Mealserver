@@ -25,5 +25,11 @@ export const updateVendorProfileSchema = z.object({
     physicalAddress: z.string().optional(),
     latitude: z.number().optional(),
     longitude: z.number().optional(),
+    // Which admin-defined delivery zone this kitchen belongs to — this is
+    // what actually drives the "Free delivery" badge shown on the public
+    // listing for this vendor. The zone's own fee/free-delivery/min-order
+    // rules are admin-only (Admin Dashboard -> Zones); a vendor can only
+    // pick from zones that already exist, not define new ones.
+    deliveryZoneId: z.string().min(1).optional(),
   }),
 });
