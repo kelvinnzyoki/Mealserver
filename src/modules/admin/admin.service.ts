@@ -1,6 +1,6 @@
 import { prisma } from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
-import { ApprovalStatus, OrderStatus, AuditAction, Role } from "@prisma/client";
+import { ApprovalStatus, OrderStatus, DeliveryStatus, AuditAction, Role } from "@prisma/client";
 
 export async function getDashboardStats() {
   const [customers, vendorsApproved, vendorsPending, ridersApproved, ridersPending, orderCounts, revenueAgg] =
@@ -83,6 +83,7 @@ export function listAllOrders(filters: { status?: OrderStatus; vendorId?: string
     include: {
       vendor: { select: { businessName: true } },
       customer: { select: { fullName: true, phone: true } },
+      items: true,
       payments: { orderBy: { initiatedAt: "desc" }, take: 1 },
     },
   });
@@ -105,10 +106,9 @@ export function getPlatformSettings() {
 }
 
 export function updatePlatformSettings(data: Record<string, unknown>) {
-  // Same reasoning as zone.service.ts's `as never` casts: this comes from
-  // an admin-only settings form, not user-generated Prisma input, and a
-  // generic Record<string, unknown> doesn't structurally match Prisma's
-  // specific PlatformSettingsUpdateInput field types.
+  // A generic Record<string, unknown> doesn't structurally match Prisma's
+  // specific PlatformSettingsUpdateInput field types — this comes from an
+  // admin-only settings form, not arbitrary user input, so the cast is safe.
   return prisma.platformSettings.upsert({
     where: { id: 1 },
     update: data as never,
@@ -134,6 +134,87 @@ export async function issueRefund(actorId: string, orderId: string, reason: stri
   await prisma.auditLog.create({
     data: { action: AuditAction.REFUND_ISSUED, actorType: "admin", actorId, orderId, metadata: { reason, amount: Number(order.total) } },
   });
+
+  return updated;
+}
+
+// Manual support override for order status — the normal paths are the
+// vendor dashboard (accept/prepare/ready) and the rider dashboard
+// (accept/pickup/deliver); this exists for when an order gets stuck or a
+// vendor/rider isn't using their dashboard, so support can unblock a
+// customer directly. Deliberately excludes PENDING_PAYMENT, PLACED, and
+// EXPIRED — those are payment- and system-driven, not something to set by
+// hand — and refuses to touch an order that hasn't actually been paid for.
+const ADMIN_SETTABLE_STATUSES: OrderStatus[] = [
+  OrderStatus.ACCEPTED,
+  OrderStatus.PREPARING,
+  OrderStatus.READY_FOR_PICKUP,
+  OrderStatus.ASSIGNED,
+  OrderStatus.PICKED_UP,
+  OrderStatus.DELIVERED,
+  OrderStatus.CANCELLED,
+  OrderStatus.REJECTED,
+];
+
+const DELIVERY_STATUS_FOR_ORDER_STATUS: Partial<Record<OrderStatus, DeliveryStatus>> = {
+  [OrderStatus.ASSIGNED]: DeliveryStatus.ASSIGNED,
+  [OrderStatus.PICKED_UP]: DeliveryStatus.PICKED_UP,
+  [OrderStatus.DELIVERED]: DeliveryStatus.DELIVERED,
+};
+
+export async function updateOrderStatus(actorId: string, orderId: string, status: OrderStatus) {
+  if (!ADMIN_SETTABLE_STATUSES.includes(status)) {
+    throw AppError.badRequest("That status can't be set manually.");
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { delivery: true, customer: true },
+  });
+  if (!order) throw AppError.notFound("Order not found");
+  if (order.status === OrderStatus.PENDING_PAYMENT) {
+    throw AppError.badRequest("This order hasn't been paid for yet — there's nothing to update.");
+  }
+
+  const isCancelLike = status === OrderStatus.CANCELLED || status === OrderStatus.REJECTED;
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status,
+      ...(isCancelLike ? { cancelledAt: new Date(), cancelReason: "Updated by admin" } : {}),
+    },
+  });
+
+  // Keep an existing Delivery row from contradicting the order status. This
+  // never invents a rider assignment — it only updates a Delivery record
+  // that's already there, so setting ASSIGNED/PICKED_UP/DELIVERED with no
+  // real rider on the order simply leaves the "your rider" details blank
+  // for the customer, same as today.
+  const deliveryStatus = DELIVERY_STATUS_FOR_ORDER_STATUS[status];
+  if (order.delivery && deliveryStatus) {
+    await prisma.delivery.update({
+      where: { orderId },
+      data: {
+        status: deliveryStatus,
+        ...(status === OrderStatus.PICKED_UP ? { pickedUpAt: new Date() } : {}),
+        ...(status === OrderStatus.DELIVERED ? { deliveredAt: new Date() } : {}),
+      },
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      action: AuditAction.ORDER_STATUS_CHANGED,
+      actorType: "admin",
+      actorId,
+      orderId,
+      metadata: { to: status, overriddenByAdmin: true },
+    },
+  });
+
+  const { notifyOrderStatusChange } = await import("../notifications/notification.service");
+  await notifyOrderStatusChange(order.customerId, order.customer.phone, order.orderNumber, status);
 
   return updated;
 }

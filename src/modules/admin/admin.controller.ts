@@ -81,6 +81,14 @@ export const listAllOrdersHandler = async (req: Request, res: Response, next: Ne
   }
 };
 
+export const updateOrderStatusHandler = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    ok(res, await adminService.updateOrderStatus(req.user!.id, req.params.id, req.body.status));
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const listAllPaymentsHandler = async (_req: Request, res: Response, next: NextFunction) => {
   try {
     ok(res, await adminService.listAllPayments());

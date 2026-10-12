@@ -12,6 +12,7 @@ import {
   approveRiderHandler,
   suspendRiderHandler,
   listAllOrdersHandler,
+  updateOrderStatusHandler,
   listAllPaymentsHandler,
   getSettingsHandler,
   updateSettingsHandler,
@@ -33,6 +34,7 @@ router.post("/riders/:id/approve", approveRiderHandler);
 router.post("/riders/:id/suspend", suspendRiderHandler);
 
 router.get("/orders", listAllOrdersHandler);
+router.patch("/orders/:id/status", updateOrderStatusHandler);
 router.post("/orders/:id/refund", issueRefundHandler);
 
 router.get("/payments", listAllPaymentsHandler);
