@@ -2,6 +2,7 @@ import { prisma } from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
 import { logger } from "../../utils/logger";
 import { ApprovalStatus, OrderStatus, DeliveryStatus, AuditAction, Role } from "@prisma/client";
+import { sendDeliveryReceiptEmail } from "../notifications/deliveryReceipt.service";
 
 export async function getDashboardStats() {
   const [customers, vendorsApproved, vendorsPending, ridersApproved, ridersPending, orderCounts, revenueAgg] =
