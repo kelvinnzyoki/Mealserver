@@ -1,6 +1,8 @@
 import { prisma } from "../../config/prisma";
 import { AppError } from "../../utils/AppError";
 import { ApprovalStatus, OrderStatus, DeliveryStatus, AuditAction, Role } from "@prisma/client";
+import { sendDeliveryReceiptEmail } from "../notifications/deliveryReceipt.service";
+
 
 export async function getDashboardStats() {
   const [customers, vendorsApproved, vendorsPending, ridersApproved, ridersPending, orderCounts, revenueAgg] =
@@ -218,3 +220,6 @@ export async function updateOrderStatus(actorId: string, orderId: string, status
 
   return updated;
 }
+// fire-and-forget, so the rider's app gets an instant response
+void sendDeliveryReceiptEmail(order.id);
+
