@@ -31,7 +31,7 @@ function supportPhone(): string {
 }
 function siteUrl(): string {
   // Public website shown on receipts and in the receipt email.
-  return envVar("RECEIPT_WEBSITE_URL") || "https://mpishikenya@cctamcc.site";
+  return envVar("RECEIPT_WEBSITE_URL") || "https://mpishikenya.cctamcc.site";
 }
 
 // Prisma's Decimal fields (subtotal, unitPrice, etc.) come back as a
