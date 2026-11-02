@@ -32,3 +32,15 @@ export function platformMarkup(vendorPrice: number): number {
 export function customerPrice(vendorPrice: number): number {
   return vendorPrice + platformMarkup(vendorPrice);
 }
+
+
+export function finalCustomerPrice(item: {
+  basePrice: unknown;
+  customerPriceOverride?: unknown;
+}): number {
+  if (item.customerPriceOverride != null) {
+    const override = Number(item.customerPriceOverride);
+    if (Number.isFinite(override) && override > 0) return override;
+  }
+  return customerPrice(Number(item.basePrice));
+}
