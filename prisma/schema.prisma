@@ -1,5 +1,5 @@
 // ============================================================================
-// KulaGo — Prisma schema
+// Mpishi254— Prisma schema
 // Kenyan food delivery platform: customers, vendors (kitchens), riders, admin
 // ============================================================================
 
@@ -300,6 +300,7 @@ model FoodItem {
   calorieInfo    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  customerPriceOverride Decimal? @db.Decimal(10, 2)
 
   variations  FoodVariation[]
   cartItems   CartItem[]
