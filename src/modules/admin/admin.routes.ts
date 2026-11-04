@@ -19,9 +19,12 @@ import {
   issueRefundHandler,
   sendReceiptHandler,
 } from "./admin.controller";
+import { adminMenuRouter } from "./admin.menu.routes";   
+
 
 const router = Router();
 router.use(requireAuth, authorize(Role.ADMIN));
+router.use("/menu", adminMenuRouter);
 
 router.get("/dashboard", dashboardHandler);
 
